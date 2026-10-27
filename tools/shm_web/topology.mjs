@@ -1,3 +1,4 @@
+import { slaveDetails } from './diagnostics.mjs';
 // Logical membership only: ABI v2 does not expose physical port adjacency.
 const AL_STATES = { 1: 'INIT', 2: 'PREOP', 3: 'BOOT', 4: 'SAFEOP', 8: 'OP' };
 
@@ -42,6 +43,32 @@ export function createTopologyView({ container, picker, detail, notice, onSelect
   let stale = false;
   let schema = '';
   let model = topologyModel(snapshot);
+  const tooltip = document.createElement('div');
+  tooltip.className = 'topology-tooltip';
+  tooltip.hidden = true;
+  tooltip.setAttribute('role', 'tooltip');
+  document.body.append(tooltip);
+  let hoverId = null;
+  let hideTimer;
+  function hideTooltip() { hoverId = null; tooltip.hidden = true; }
+  function tooltipText(id) {
+    const slave = snapshot.slaves?.find(s => `slave-${s.id}` === id);
+    return slave ? `${stale ? '数据已过期\n' : ''}${slaveDetails(slave, true).map(([k, v]) => `${k}: ${v}`).join('\n')}` : '';
+  }
+  function showTooltip(id, point) {
+    clearTimeout(hideTimer);
+    hoverId = id;
+    tooltip.textContent = tooltipText(id);
+    tooltip.hidden = !tooltip.textContent;
+    if (point) {
+      const rect = container.getBoundingClientRect();
+      tooltip.style.left = `${Math.max(8, Math.min(rect.left + point.x + 12, window.innerWidth - tooltip.offsetWidth - 8))}px`;
+      tooltip.style.top = `${Math.max(8, Math.min(rect.top + point.y + 12, window.innerHeight - tooltip.offsetHeight - 8))}px`;
+    }
+  }
+  tooltip.addEventListener('mouseenter', () => clearTimeout(hideTimer));
+  tooltip.addEventListener('mouseleave', hideTooltip);
+  document.addEventListener('keydown', event => { if (event.key === 'Escape') hideTooltip(); });
   const text = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
   const nodeLabel = node => `${Array.from(node.name).slice(0, 26).join('')}${Array.from(node.name).length > 26 ? '…' : ''}\n${node.role} · ${node.label}`;
   const narrow = () => container.clientWidth < 600;
@@ -64,7 +91,7 @@ export function createTopologyView({ container, picker, detail, notice, onSelect
   function showSelection(id) {
     const node = model.nodes.find(item => item.id === id) || model.nodes[0];
     picker.value = node.id;
-    detail.textContent = `${node.name} · ${node.role} · ${node.label}`;
+    detail.textContent = `${node.name} · ${node.role} · ${node.label}\n${tooltipText(node.id)}`;
     onSelect(node.slaveId, stale || !snapshot.available);
   }
   function fit() {
@@ -75,6 +102,7 @@ export function createTopologyView({ container, picker, detail, notice, onSelect
   }
   function render() {
     model = topologyModel(snapshot, stale);
+    if (hoverId) showTooltip(hoverId);
     const selected = picker.value || 'master';
     const nextSchema = JSON.stringify([narrow(), snapshot.master_id, model.nodes.map(node => [node.id, node.name])]);
     if (schema !== nextSchema) {
@@ -146,6 +174,9 @@ export function createTopologyView({ container, picker, detail, notice, onSelect
       minZoom: .05, maxZoom: 2, boxSelectionEnabled: false, autoungrabify: true,
       userZoomingEnabled: true, wheelSensitivity: .25 });
     cy.on('tap', 'node', event => showSelection(event.target.id()));
+    cy.on('mouseover mousemove', 'node', event => showTooltip(event.target.id(), event.renderedPosition || event.target.renderedPosition()));
+    cy.on('mouseout', 'node', () => { hideTimer = setTimeout(hideTooltip, 180); });
+    cy.on('pan zoom', hideTooltip);
     new ResizeObserver(() => { cy.resize(); render(); }).observe(container);
     schema = '';
     render();

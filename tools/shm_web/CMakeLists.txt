@@ -29,6 +29,8 @@ set(SHM_WEB_ASSETS
     "${CMAKE_CURRENT_SOURCE_DIR}/index.html"
     "${CMAKE_CURRENT_SOURCE_DIR}/value_decoder.mjs"
     "${CMAKE_CURRENT_SOURCE_DIR}/topology.mjs"
+    "${CMAKE_CURRENT_SOURCE_DIR}/diagnostics.mjs"
+    "${CMAKE_CURRENT_SOURCE_DIR}/controls.mjs"
     "${CMAKE_CURRENT_SOURCE_DIR}/AlibabaPuHuiTi-3-55-Regular.woff2"
     "${CMAKE_CURRENT_SOURCE_DIR}/AlibabaPuHuiTi-3-65-Medium.woff2"
     "${CMAKE_CURRENT_SOURCE_DIR}/AlibabaPuHuiTi-3-75-SemiBold.woff2"
@@ -54,4 +56,10 @@ if(BUILD_TESTING)
     target_compile_options(shm_web_output_test PRIVATE -Wall -Wextra)
     target_link_libraries(shm_web_output_test PRIVATE rocos::shm Threads::Threads rt)
     add_test(NAME shm_web_output COMMAND shm_web_output_test)
+    add_executable(shm_web_control_test control_test.cpp)
+    target_compile_features(shm_web_control_test PRIVATE cxx_std_17)
+    target_compile_options(shm_web_control_test PRIVATE -Wall -Wextra -Werror)
+    target_link_libraries(shm_web_control_test PRIVATE rocos::shm Threads::Threads rt)
+    add_test(NAME shm_web_control COMMAND shm_web_control_test)
+    set_tests_properties(shm_web_control PROPERTIES TIMEOUT 30 RUN_SERIAL TRUE)
 endif()

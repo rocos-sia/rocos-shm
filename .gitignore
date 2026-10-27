@@ -1,3 +1,4 @@
 /build*/
+/CMakeUserPresets.json
 # Standalone Web monitor build directories.
 /tools/shm_web/build*/

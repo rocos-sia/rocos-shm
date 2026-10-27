@@ -228,6 +228,23 @@
     .topology-selection select { min-width: 0; flex: 1 1 160px; }
     #topology-detail, #topology-notice, #topology-help { flex-basis: 100%; }
   }
+  .diagnostics-panel, .control-panel { margin-top: 20px; padding: 20px; border: 1px solid var(--border); border-radius: 16px; background: var(--panel); }
+  .diagnostics-panel summary, .slave-info summary { cursor: pointer; font-weight: 600; min-height: 32px; }
+  .diagnostics-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 8px 24px; }
+  .diagnostics-grid > div { padding: 8px 0; border-bottom: 1px solid var(--border); min-width: 0; }
+  .diagnostics-grid dt { color: var(--muted); font-size: 12px; }
+  .diagnostics-grid dd { margin: 4px 0 0; overflow-wrap: anywhere; }
+  .slave-info { padding: 12px 20px; border-bottom: 1px solid var(--border); }
+  .control-panel h2 { margin: 0; font-size: 16px; }
+  .control-row, .control-form { display: flex; gap: 12px; flex-wrap: wrap; align-items: end; margin-top: 12px; }
+  .control-form label { min-width: 0; max-width: 100%; display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; font-size: 12px; color: var(--muted); }
+  .control-panel input:not([type=checkbox]), .control-panel select, .control-panel button { min-height: 44px; max-width: 100%; padding: 8px 12px; border: 1px solid var(--border-strong); border-radius: 8px; color: var(--text); background: var(--panel); }
+  .control-panel button { color: var(--accent); cursor: pointer; }
+  .control-panel button:disabled, .control-panel input:disabled, .control-panel select:disabled { color: var(--muted); cursor: not-allowed; background: var(--panel-raised); }
+  .control-note { font-size: 12px; color: var(--muted); }
+  .command-detail { white-space: pre-wrap; overflow-wrap: anywhere; font-family: var(--ui); font-size: 12px; }
+  .topology-tooltip { position: fixed; z-index: 100; width: min(560px, calc(100vw - 16px)); max-height: min(520px, 65vh); overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; padding: 16px; font: 12px/1.6 var(--ui); border: 1px solid var(--border-strong); border-radius: 12px; background: var(--panel); color: var(--text); box-shadow: 0 8px 24px #0002; }
+  #topology-detail { white-space: pre-wrap; max-height: 240px; overflow: auto; }
 </style>
 <script defer src="./vendor/cytoscape-3.33.1.min.js"></script>
 </head>
@@ -275,10 +292,38 @@
         <div class="metric-head"><h2>运行信息</h2><span class="metric-code">Runtime</span></div>
         <div class="kv"><span class="k">时间戳 (μs)</span><span class="v" id="ts">—</span></div>
         <div class="kv"><span class="k">运行模式</span><span class="v" id="mode">—</span></div>
-        <div class="kv"><span class="k">重启统计</span><span class="v" id="reset">—</span></div>
+        <div class="kv"><span class="k">统计复位标记</span><span class="v" id="reset">—</span></div>
       </article>
     </section>
 
+
+    <details class="diagnostics-panel" open>
+      <summary>共享内存完整诊断</summary>
+      <dl id="bus-details" class="diagnostics-grid"></dl>
+      <details><summary>ABI / 映射头</summary><dl id="header-details" class="diagnostics-grid"></dl></details>
+      <p class="control-note">无效字段显示“未知”并保留原始值；DC 样本超过 3 秒标为过期。保留字节不作业务字段解释。</p>
+    </details>
+    <section class="control-panel" aria-labelledby="control-title">
+      <h2 id="control-title">主站与字典操作</h2>
+      <div class="control-row"><strong id="access-status">只读 · 写入未启用</strong><button id="write-mode" type="button" disabled aria-pressed="false">启用写入</button></div>
+      <p class="control-note"><label><input type="checkbox" id="sole-writer"> 我已停止其他可写 App；若从其他 App 接管，已协调重启主站。由本 Web 作为唯一写入者。</label> 多个 Web 进程由锁互斥；外部 App 仍需由部署方保证停止。</p>
+      <form id="state-form" class="control-form">
+        <label>目标主站状态<select id="state-target"><option value="1">INIT</option><option value="2">PREOP</option><option value="3">BOOT</option><option value="4">SAFEOP</option><option value="8">OP</option></select></label>
+        <button id="state-submit" disabled>提交状态请求</button><button type="button" id="reset-stats" disabled>复位周期统计</button>
+      </form><p class="control-note" id="state-support"></p>
+      <form id="sdo-form" class="control-form">
+        <label>SDO 操作<select id="sdo-type"><option value="1">读取</option><option value="2">写入</option></select></label>
+        <label>目标从站<select id="sdo-slave"></select></label>
+        <label>对象索引<input id="sdo-index" value="0x1000" size="8" required></label>
+        <label>子索引<input id="sdo-sub" value="0" size="4" required></label>
+        <label>读取容量 / 写入长度 (B)<input id="sdo-size" value="4" size="4" required></label>
+        <label>发送字节（十六进制）<input id="sdo-data" placeholder="78 56 34 12" size="24" disabled></label>
+        <button id="sdo-submit" disabled>发送 SDO</button>
+      </form><p class="control-note" id="sdo-support"></p>
+      <p id="control-result" role="status"></p><p id="command-pending" class="control-note"></p>
+      <pre id="command-result" class="command-detail"></pre>
+      <details><summary>最近请求参数</summary><pre id="command-request" class="command-detail"></pre></details>
+    </section>
 
     <section class="topology-panel" aria-labelledby="topology-title">
       <div class="topology-heading">
@@ -308,8 +353,8 @@
       <div class="workspace-title">
         <h2 id="pdo-title">从站实时数据</h2>
         <div class="legend" aria-label="数据方向图例">
-          <span class="legend-item in"><span class="legend-swatch"></span>IN 输入</span>
-          <span class="legend-item out"><span class="legend-swatch"></span>OUT 输出</span>
+          <span class="legend-item in"><span class="legend-swatch"></span>IN / TxPDO 输入</span>
+          <span class="legend-item out"><span class="legend-swatch"></span>OUT / RxPDO 输出</span>
         </div>
       </div>
       <div id="slaves">
@@ -325,6 +370,8 @@
 </div>
 
 <script type="module">
+import { createControls } from './controls.mjs';
+import { escapeHtml, rowsHtml, slaveDetails, busDetails } from './diagnostics.mjs';
 import { createTopologyView } from './topology.mjs';
 import { compatibleTypeForSize, decodeStatusWord, encodeValue, formatTypedBytes, typesForSize, variableKey } from './value_decoder.mjs';
 
@@ -334,6 +381,7 @@ import { compatibleTypeForSize, decodeStatusWord, encodeValue, formatTypedBytes,
   const selectedTypes = new Map();
   let currentMasterId = null;
   let canWrite = false;
+  const controls = createControls({ $, onChange: enabled => setWriteEnabled(enabled) });
 
   let selectedSlaveId = null;
   const topology = createTopologyView({
@@ -401,7 +449,7 @@ import { compatibleTypeForSize, decodeStatusWord, encodeValue, formatTypedBytes,
     const tagText = direction.toUpperCase();
     return `<tr data-key="${key}" data-bytes="${variable.bytes}" data-size="${variable.size}">
       <td><span class="tag ${tagClass}">${tagText}</span></td>
-      <td>${variable.name}</td>
+      <td>${escapeHtml(variable.name)}</td>
       <td>${variable.index}.${variable.sub_index}</td>
       <td class="num">${variable.offset}</td>
       <td class="num">${variable.size} B</td>
@@ -446,8 +494,10 @@ import { compatibleTypeForSize, decodeStatusWord, encodeValue, formatTypedBytes,
     setText('max', fmt(bus.cycle.max));
     setText('avg', fmt(bus.cycle.avg));
     setText('ts', fmt(bus.timestamp));
-    setText('mode', bus.demo ? '演示 (demo)' : '真实 · 只读');
-    setText('reset', '由 App 命令触发');
+    setText('mode', `${bus.demo ? '演示' : '真实'} · ${controls.writable() ? '可写' : '只读'}`);
+    setText('reset', bus.resetCycleTime ? '已置位' : '未置位');
+    $('bus-details').innerHTML = rowsHtml(busDetails(bus));
+    $('header-details').innerHTML = rowsHtml(Object.entries(bus.header || {}));
   }
 
   function slaveRuntime(slave) {
@@ -470,6 +520,8 @@ import { compatibleTypeForSize, decodeStatusWord, encodeValue, formatTypedBytes,
       for (const slave of bus.slaves) {
         const status = container.querySelector(`[data-slave-runtime="${slave.id}"]`);
         if (status) status.textContent = slaveRuntime(slave);
+        const info = container.querySelector(`[data-slave-info="${slave.id}"]`);
+        if (info) info.innerHTML = rowsHtml(slaveDetails(slave));
         for (const variable of slave.output_vars) updateVariableRow(container, slave.id, 'out', variable);
         for (const variable of slave.input_vars) updateVariableRow(container, slave.id, 'in', variable);
       }
@@ -479,9 +531,10 @@ import { compatibleTypeForSize, decodeStatusWord, encodeValue, formatTypedBytes,
     for (const slave of bus.slaves) {
       html += `<div class="slave-box" id="slave-${slave.id}" tabindex="-1">
         <div class="slave-head">
-          <h3 class="name">#${slave.id} ${slave.name}</h3>
+          <h3 class="name">#${slave.id} ${escapeHtml(slave.name)}</h3>
           <span class="meta"><span data-slave-runtime="${slave.id}">${slaveRuntime(slave)}</span> · 输入 ${slave.input_var_num} · 输出 ${slave.output_var_num}</span>
         </div>
+        <details class="slave-info"><summary>身份与运行信息</summary><dl class="diagnostics-grid" data-slave-info="${slave.id}">${rowsHtml(slaveDetails(slave))}</dl></details>
         <div class="table-scroll" tabindex="0" role="region" aria-label="从站 ${slave.id} PDO 数据，可横向滚动">
           <table aria-label="从站 ${slave.id} PDO 变量">
             <thead><tr><th scope="col">方向</th><th scope="col">变量名</th><th scope="col">索引</th><th scope="col">偏移 (B)</th><th scope="col">大小</th><th scope="col">实时值</th><th scope="col">数据类型</th><th scope="col">OUT 写入（单次）</th></tr></thead>
@@ -505,7 +558,7 @@ import { compatibleTypeForSize, decodeStatusWord, encodeValue, formatTypedBytes,
       dot.className = 'dot live';
       txt.textContent = demo
         ? '已连接（演示模式）· 数据为模拟值'
-        : '已连接 · 只读监控，输出由 App 控制';
+        : '已连接 · 写权限见操作面板';
     } else {
       dot.className = 'dot waiting';
       txt.textContent = error
@@ -518,28 +571,31 @@ import { compatibleTypeForSize, decodeStatusWord, encodeValue, formatTypedBytes,
     canWrite = enabled;
     for (const button of $('slaves').querySelectorAll('.output-editor button')) {
       button.disabled = !enabled || button.closest('form').dataset.pending === 'true';
-      button.title = enabled ? '' : '只读监控：输出由唯一可写 App 控制';
+      button.title = enabled ? '' : '只读或命令在途；请先启用写入';
       button.closest('form').elements.value.disabled = !enabled;
     }
   }
 
   function handle(snapshot) {
     topology.update(snapshot);
+    controls.update(snapshot);
     currentMasterId = snapshot.master_id;
     setText('masterid', snapshot.master_id ?? '—');
     if (!snapshot.available) {
       setWriteEnabled(false);
-      $('slaves').innerHTML = '<div class="empty">' + (snapshot.error || '共享内存不可用') + '</div>';
+      $('slaves').innerHTML = '<div class="empty">' + escapeHtml(snapshot.error || '共享内存不可用') + '</div>';
       delete $('slaves').dataset.schema;
       updateStatus(false, snapshot.demo, snapshot.error);
       // 清空卡片。
+      $('bus-details').textContent = '共享内存不可用，诊断信息已过期';
+      $('header-details').textContent = '';
       ['state','reqstate','auth','slavenum','dt','cur','min','max','avg','ts','mode','reset'].forEach(k => setText(k, '—'));
       return;
     }
     updateStatus(true, snapshot.demo);
     renderBus(snapshot);
     renderSlaves(snapshot);
-    setWriteEnabled(snapshot.demo === true && snapshot.read_only === false);
+    setWriteEnabled(controls.writable());
   }
 
   $('slaves').addEventListener('submit', async event => {
@@ -554,7 +610,7 @@ import { compatibleTypeForSize, decodeStatusWord, encodeValue, formatTypedBytes,
       if (!canWrite) throw new Error('连接不可用，无法写入');
       const [slave, direction, index, sub, offset] = row.dataset.key.split(':');
       if (direction !== 'out') throw new Error('仅允许写入 OUT');
-      const bytes = encodeValue(form.elements.value.value, row.querySelector('.data-type').value);
+      const bytes = encodeValue(form.elements.value.value, row.querySelector('.data-type').value, Number(row.dataset.size));
       const body = [currentMasterId, slave, Number.parseInt(index, 16), sub, offset, row.dataset.size, bytes].join(' ');
       form.dataset.pending = 'true';
       button.disabled = true;
@@ -564,7 +620,7 @@ import { compatibleTypeForSize, decodeStatusWord, encodeValue, formatTypedBytes,
       let response;
       try {
         response = await fetch('/api/output', {
-          method: 'POST', headers: { 'Content-Type': 'text/plain', 'X-Rocos-Write': '1' },
+          method: 'POST', headers: controls.headers(),
           body, signal: controller.signal,
         });
         const reply = await response.json();
@@ -572,7 +628,7 @@ import { compatibleTypeForSize, decodeStatusWord, encodeValue, formatTypedBytes,
         result.textContent = '已写入 ' + bytes.toUpperCase() + '；以实时值为准';
       } finally { clearTimeout(timeout); }
     } catch (error) {
-      result.textContent = error.name === 'AbortError' ? '请求超时，结果未确认，请查看实时值' : error.message;
+      result.textContent = (error.name === 'AbortError' || error instanceof TypeError) ? '网络中断或超时，结果未确认；请查看实时值，不要盲目重发' : error.message;
     } finally {
       delete form.dataset.pending;
       button.disabled = !canWrite;
@@ -597,6 +653,7 @@ import { compatibleTypeForSize, decodeStatusWord, encodeValue, formatTypedBytes,
     es.onerror = () => {
       // EventSource 会自动重连；切换为等待状态。
       setWriteEnabled(false);
+      controls.disconnected();
       topology.markStale();
       $('dot').className = 'dot waiting';
       $('statustext').textContent = '连接中断，重连中…';
@@ -604,6 +661,7 @@ import { compatibleTypeForSize, decodeStatusWord, encodeValue, formatTypedBytes,
   } else {
     const poll = () => fetch('/api/snapshot').then(r => r.json()).then(handle).catch(() => {
       setWriteEnabled(false);
+      controls.disconnected();
       topology.markStale();
       updateStatus(false, false, '无法连接服务器');
     });

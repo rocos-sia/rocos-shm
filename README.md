@@ -6,6 +6,26 @@ The ABI, POSIX resource lifecycle, scalar atomic access, PDO bounds checks and s
 
 ## Build and test
 
+With CMake 3.20 or newer, use the Release or Debug presets from the repository
+root. Configure each preset once before building; subsequent builds only need
+`cmake --build --preset release` or `cmake --build --preset debug`.
+Both presets enable the offline v2 IPC tests and use Unix Makefiles.
+
+```sh
+cmake --preset release
+cmake --build --preset release
+ctest --test-dir build/release -R '^rocos_shm_v2$' --output-on-failure --timeout 30
+
+cmake --preset debug
+cmake --build --preset debug
+ctest --test-dir build/debug -R '^rocos_shm_v2$' --output-on-failure --timeout 30
+```
+
+Build outputs are in `build/release` and `build/debug`, respectively. Add
+`--parallel 2` to a build command to compile with two jobs.
+
+Without presets:
+
 ```sh
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DROCOS_SHM_BUILD_TESTS=ON
 cmake --build build -- -j2
@@ -16,7 +36,7 @@ The default build includes the Web monitor and requires CMake 3.16 and C++17. Fo
 
 ## Shared Web monitor (ECM / IgH)
 
-[`tools/shm_web`](tools/shm_web/README.md) is the shared, read-only ABI v2 monitor
+[`tools/shm_web`](tools/shm_web/README.md) is the shared ABI v2 monitor and debugging tool
 for `rocos-ecm` and `rocos-igh`. It was moved from `rocos-igh/tools/shm_web`;
 consumers no longer maintain their own copy. It uses only `rocos::shm`, without
 EtherCAT SDKs or a consumer source tree. `ROCOS_SHM_BUILD_WEB` defaults to `ON`;
@@ -35,8 +55,10 @@ node --test tools/shm_web/*.test.mjs  # Node.js 20 or newer
 Start a compatible ECM or IgH master with the same ID, then open
 `http://127.0.0.1:8484`. Each server observes one ID; run another server with a
 different `--master-id` and `--port` to monitor another bus. ECM and IgH masters
-running together must use distinct IDs. Real buses remain read-only; `--demo`
-creates its own simulated bus and permits demo output writes. See the tool's
+running together must use distinct IDs. Both real and demo sessions start read-only.
+The UI can explicitly enable a single writer session for supported state requests,
+SDO commands and RxPDO writes; stop other writable Apps before enabling it.
+`--demo` creates its own simulated bus; use an isolated, non-production master ID. See the tool's
 README for standalone builds and deployment requirements.
 
 ## Consume a pinned revision

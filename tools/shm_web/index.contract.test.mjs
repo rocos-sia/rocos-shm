@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import test from 'node:test';
 import vm from 'node:vm';
 import * as decoder from './value_decoder.mjs';
+import { escapeHtml } from './diagnostics.mjs';
 
 const html = readFileSync(new URL('./index.html', import.meta.url), 'utf8');
 const cmake = readFileSync(new URL('./CMakeLists.txt', import.meta.url), 'utf8');
@@ -59,7 +60,7 @@ test('provides a persisted light and dark theme toggle', () => {
 
 
 test('renders and refreshes status tags while type changes preserve them', () => {
-  const context = vm.createContext({ ...decoder, selectedTypes: new Map() });
+  const context = vm.createContext({ ...decoder, escapeHtml, selectedTypes: new Map() });
   const functions = html.slice(html.indexOf('  function renderTypeSelector'), html.indexOf('  function setText'));
   vm.runInContext(functions, context);
   const variable = { index: '6041', sub_index: 0, size: 2, offset: 14, bytes: '0812', name: 'Status Word' };
@@ -89,13 +90,13 @@ test('renders and refreshes status tags while type changes preserve them', () =>
 
 
 test('only mapped supported OUT rows have an editor and updates preserve input', () => {
-  const context = vm.createContext({ ...decoder, selectedTypes: new Map() });
+  const context = vm.createContext({ ...decoder, escapeHtml, selectedTypes: new Map() });
   vm.runInContext(html.slice(html.indexOf('  function renderTypeSelector'), html.indexOf('  function setText')), context);
   const variable = { index: '607A', sub_index: 0, size: 4, offset: 0, bytes: '00000000', name: 'Target Position' };
   assert.match(context.renderVariableRow(0, 'out', variable), /form class="output-editor"/);
   assert.doesNotMatch(context.renderVariableRow(0, 'in', variable), /form class="output-editor"/);
   assert.doesNotMatch(context.renderVariableRow(0, 'out', { ...variable, index: '0000' }), /form class="output-editor"/);
-  assert.doesNotMatch(context.renderVariableRow(0, 'out', { ...variable, size: 3 }), /form class="output-editor"/);
+  assert.doesNotMatch(context.renderVariableRow(0, 'out', { ...variable, size: 65 }), /form class="output-editor"/);
   const cells = { '.raw-value': {}, '.status-tags': {} };
   // Any attempt to replace the row or touch the editor during a snapshot fails here.
   const row = { dataset: {}, querySelector: selector => { assert.ok(selector in cells); return cells[selector]; } };
@@ -117,7 +118,8 @@ test('OUT form submits typed bytes once with exact target and reports failures',
   };
   const calls = [];
   const context = vm.createContext({
-    ...decoder, currentMasterId: 7, canWrite: true, AbortController, setTimeout, clearTimeout,
+    controls: { headers: () => ({ 'X-Rocos-Write': '1', 'X-Rocos-Session': 'test', 'X-Rocos-Instance': '123' }) },
+    ...decoder, escapeHtml, currentMasterId: 7, canWrite: true, AbortController, setTimeout, clearTimeout,
     $: () => ({ addEventListener: (_, handler) => { context.submit = handler; } }),
     fetch: async (url, options) => { calls.push({ url, ...options }); return { ok: true, json: async () => ({ ok: true }) }; },
   });
@@ -145,8 +147,8 @@ test('OUT form submits typed bytes once with exact target and reports failures',
   assert.equal(button.disabled, true);
 });
 
-test('real monitor stays read-only and unavailable slave diagnostics stay unknown', () => {
-  assert.match(html, /setWriteEnabled\(snapshot\.demo === true && snapshot\.read_only === false\)/);
+test('write permission comes from the session and unavailable diagnostics stay unknown', () => {
+  assert.match(html, /setWriteEnabled\(controls\.writable\(\)\)/);
   assert.match(server, /connect\(true\)/);
   const input = { disabled: false };
   const form = { dataset: {}, elements: { value: input } };

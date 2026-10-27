@@ -15,13 +15,15 @@ test('offers only data types matching the PDO byte width', () => {
   assert.deepEqual(typesForSize(1), ['UINT8', 'INT8']);
   assert.deepEqual(typesForSize(2), ['UINT16', 'INT16']);
   assert.deepEqual(typesForSize(4), ['UINT32', 'INT32', 'FLOAT']);
-  assert.deepEqual(typesForSize(3), []);
+  assert.deepEqual(typesForSize(3), ['HEX']);
+  assert.deepEqual(typesForSize(8), ['UINT64', 'INT64', 'DOUBLE']);
+  assert.deepEqual(typesForSize(65), []);
 });
 
 test('falls back when a saved type does not match the current byte width', () => {
   assert.equal(compatibleTypeForSize(4, 'INT32'), 'INT32');
   assert.equal(compatibleTypeForSize(2, 'INT32'), 'UINT16');
-  assert.equal(compatibleTypeForSize(3, 'INT32'), undefined);
+  assert.equal(compatibleTypeForSize(3, 'INT32'), 'HEX');
 });
 
 test('decodes unsigned integers as little-endian values', () => {
@@ -126,4 +128,18 @@ test('rejects malformed and out-of-range OUT values', () => {
     ['4294967296', 'UINT32'], ['2147483648', 'INT32'], ['NaN', 'FLOAT'],
     ['Infinity', 'FLOAT'], ['3.5e38', 'FLOAT'], ['0x12', 'FLOAT'], ['1', 'UNKNOWN'],
   ]) assert.throws(() => encodeValue(text, type));
+});
+
+
+test('64-bit PDO values are lossless and raw mapped bytes retain their width', () => {
+  assert.equal(encodeValue('18446744073709551615', 'UINT64'), 'ffffffffffffffff');
+  assert.equal(decodeValue('ffffffffffffffff', 'UINT64'), 18446744073709551615n);
+  assert.equal(encodeValue('-9223372036854775808', 'INT64'), '0000000000000080');
+  assert.equal(decodeValue('0000000000000080', 'INT64'), -9223372036854775808n);
+  assert.throws(() => encodeValue('18446744073709551616', 'UINT64'));
+  assert.throws(() => encodeValue('1.5', 'UINT64'));
+  assert.equal(decodeValue(encodeValue('1.5', 'DOUBLE'), 'DOUBLE'), 1.5);
+  assert.equal(encodeValue('AA bb 00', 'HEX', 3), 'aabb00');
+  assert.equal(formatTypedBytes('aabb00', 'HEX'), 'AA BB 00');
+  assert.throws(() => encodeValue('aabb', 'HEX', 3));
 });

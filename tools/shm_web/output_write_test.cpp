@@ -16,16 +16,30 @@ void setup(AppState &st, int id) {
                                                MAP_PRIVATE | MAP_ANONYMOUS, -1, 0));
     check(st.cfg->ecatBus != MAP_FAILED);
     populateDemoBus(*st.cfg->ecatBus);
+    st.cfg->header = new rocos::ShmHeader{};
+    st.cfg->header->instance_id = 42;
+    rocos::atomicStore(st.cfg->header->ready, 1u);
     st.cfg->pd_output_size_ = 13;
     st.cfg->pdOutputPtr = mmap(nullptr, 13, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
     check(st.cfg->pdOutputPtr != MAP_FAILED);
+    st.writer = std::make_unique<SharedMemoryConfig>(id);
+    st.writer->header = st.cfg->header;
+    st.writer->ecatBus = st.cfg->ecatBus;
+    st.writer->pdOutputPtr = st.cfg->pdOutputPtr;
+    st.writer->pd_output_size_ = st.cfg->pd_output_size_;
+    st.write_enabled = true;
+    st.write_session = "test-session";
+}
+
+std::string write(AppState &st, const std::string &body) {
+    return writeOutput(st, body, "test-session", "42");
 }
 
 std::string request(AppState &st, const std::string &headers, const std::string &body, bool fragmented = false) {
     int fds[2];
     check(socketpair(AF_UNIX, SOCK_STREAM, 0, fds) == 0);
     std::thread worker(handleConnection, fds[1], std::ref(st), std::string("test"));
-    const auto head = "POST /api/output HTTP/1.1\r\nHost: localhost\r\n" + headers + "\r\n";
+    const auto head = "POST /api/output HTTP/1.1\r\nHost: localhost\r\nX-Rocos-Session: test-session\r\nX-Rocos-Instance: 42\r\n" + headers + "\r\n";
     const auto sent = send(fds[0], head.data(), head.size(), 0);
     if (sent < 0) std::perror("test send");
     check(sent == static_cast<ssize_t>(head.size()));
@@ -50,11 +64,16 @@ int main() {
     setup(st, 910001);
     setup(other, 910002);
     const std::string prefix = "910001 0 ";
-    check(writeOutput(st, prefix + "24698 0 0 4 78563412").empty()); // 607A
+    st.write_enabled = false;
+    check(!write(st, prefix + "24698 0 0 4 78563412").empty());
+    st.write_enabled = true;
+    check(!writeOutput(st, prefix + "24698 0 0 4 78563412", "wrong", "42").empty());
+    check(!writeOutput(st, prefix + "24698 0 0 4 78563412", "test-session", "43").empty());
+    check(write(st, prefix + "24698 0 0 4 78563412").empty()); // 607A
     check(hexBytes(st.cfg->pdOutputPtr, 0, 13) == "78563412000000000000000000");
     check(hexBytes(other.cfg->pdOutputPtr, 0, 13) == "00000000000000000000000000");
-    check(writeOutput(st, prefix + "24689 0 8 2 feff").empty()); // 6071
-    check(writeOutput(st, prefix + "24672 0 12 1 08").empty()); // 6060
+    check(write(st, prefix + "24689 0 8 2 feff").empty()); // 6071
+    check(write(st, prefix + "24672 0 12 1 08").empty()); // 6060
     const auto before = hexBytes(st.cfg->pdOutputPtr, 0, 13);
     for (const auto &body : {
         "910002 0 24698 0 0 4 00000000", // wrong master
@@ -68,15 +87,15 @@ int main() {
         "910001 0 24698 0 0 4 00000000 extra",
         "910001 0 24698 0 -1 4 00000000",
         "910001 0 24698 0 4294967296 4 00000000",
-    }) check(!writeOutput(st, body).empty());
-    st.cfg->pd_output_size_ = 3;
-    check(!writeOutput(st, prefix + "24698 0 0 4 00000000").empty());
-    st.cfg->pd_output_size_ = 13;
+    }) check(!write(st, body).empty());
+    st.writer->pd_output_size_ = 3;
+    check(!write(st, prefix + "24698 0 0 4 00000000").empty());
+    st.writer->pd_output_size_ = 13;
     st.connected = false;
-    check(!writeOutput(st, prefix + "24698 0 0 4 00000000").empty());
+    check(!write(st, prefix + "24698 0 0 4 00000000").empty());
     st.connected = true;
     st.demo = false;
-    check(!writeOutput(st, prefix + "24698 0 0 4 00000000").empty());
+    check(!write(st, prefix + "24698 0 0 4 00000000").empty());
     st.demo = true;
     check(hexBytes(st.cfg->pdOutputPtr, 0, 13) == before);
     const std::string body = prefix + "24698 0 0 4 01000000";
@@ -88,7 +107,17 @@ int main() {
     check(request(st, length + length + "X-Rocos-Write: 1\r\n", body).find("400 ") != std::string::npos);
     check(request(st, length + "X-Rocos-Write: 1\r\nTransfer-Encoding: chunked\r\n", body).find("400 ") != std::string::npos);
     check(request(st, length + "X-Rocos-Write: 1\r\n", "short").find("400 ") != std::string::npos);
+    auto &wide = other.cfg->ecatBus->slaves[0].output_vars[0];
+    wide.size = 8;
+    check(writeOutput(other, "910002 0 24698 0 0 8 ffffffffffffffff", "test-session", "42").empty());
+    check(hexBytes(other.cfg->pdOutputPtr, 0, 8) == "ffffffffffffffff");
+    wide.size = 3;
+    check(writeOutput(other, "910002 0 24698 0 0 3 aabbcc", "test-session", "42").empty());
+    check(hexBytes(other.cfg->pdOutputPtr, 0, 3) == "aabbcc");
+    wide.size = 65;
+    check(!writeOutput(other, "910002 0 24698 0 0 65 " + std::string(130, '0'), "test-session", "42").empty());
     for (auto *app : {&st, &other}) {
+        delete app->cfg->header;
         munmap(app->cfg->ecatBus, sizeof(EcatBus));
         munmap(app->cfg->pdOutputPtr, 13);
         app->cfg->ecatBus = nullptr;

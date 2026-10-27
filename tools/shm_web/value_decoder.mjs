@@ -2,10 +2,11 @@ const TYPES_BY_SIZE = Object.freeze({
   1: Object.freeze(['UINT8', 'INT8']),
   2: Object.freeze(['UINT16', 'INT16']),
   4: Object.freeze(['UINT32', 'INT32', 'FLOAT']),
+  8: Object.freeze(['UINT64', 'INT64', 'DOUBLE']),
 });
 
 export function typesForSize(size) {
-  return TYPES_BY_SIZE[size] || [];
+  return TYPES_BY_SIZE[size] || (Number.isInteger(size) && size > 0 && size <= 64 ? ['HEX'] : []);
 }
 
 export function compatibleTypeForSize(size, selectedType) {
@@ -34,6 +35,10 @@ export function decodeValue(hexBytes, type) {
     case 'UINT32': return view.getUint32(0, true);
     case 'INT32': return view.getInt32(0, true);
     case 'FLOAT': return view.getFloat32(0, true);
+    case 'UINT64': return view.getBigUint64(0, true);
+    case 'INT64': return view.getBigInt64(0, true);
+    case 'DOUBLE': return view.getFloat64(0, true);
+    case 'HEX': return hexBytes.toUpperCase();
     default: throw new RangeError(`Unsupported data type: ${type}`);
   }
 }
@@ -43,6 +48,7 @@ export function formatTypedBytes(hexBytes, type) {
     .map(pair => pair.toUpperCase())
     .join(' ');
   if (!hex) return '-';
+  if (type === 'HEX') return hex;
   return `${hex} = ${decodeValue(hexBytes, type)}`;
 }
 
@@ -76,23 +82,41 @@ export function decodeStatusWord(variable) {
 }
 
 
-export function encodeValue(text, type) {
+export function encodeValue(text, type, byteSize) {
+  if (type === 'HEX') {
+    const hex = text.replace(/\s/g, '');
+    if (!Number.isInteger(byteSize) || byteSize < 1 || byteSize > 64 || !/^[0-9a-f]+$/i.test(hex) || hex.length !== byteSize * 2) throw new Error(`请输入 ${byteSize} 字节的十六进制数据`);
+    return hex.toLowerCase();
+  }
+  if (type === 'UINT64' || type === 'INT64') {
+    const input = text.trim();
+    if (!/^(?:[+-]?\d+|0x[0-9a-f]+)$/i.test(input)) throw new Error('请输入有效整数');
+    const value = BigInt(input);
+    const min = type === 'INT64' ? -(1n << 63n) : 0n;
+    const max = type === 'INT64' ? (1n << 63n) - 1n : (1n << 64n) - 1n;
+    if (value < min || value > max) throw new Error(`${type} 范围：${min} ～ ${max}`);
+    const bytes = new Uint8Array(8);
+    const view = new DataView(bytes.buffer);
+    if (type === 'INT64') view.setBigInt64(0, value, true); else view.setBigUint64(0, value, true);
+    return Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
+  }
   const spec = {
     UINT8: [1, 0, 255, 'setUint8'], INT8: [1, -128, 127, 'setInt8'],
     UINT16: [2, 0, 65535, 'setUint16'], INT16: [2, -32768, 32767, 'setInt16'],
     UINT32: [4, 0, 4294967295, 'setUint32'], INT32: [4, -2147483648, 2147483647, 'setInt32'],
+    DOUBLE: [8, -Number.MAX_VALUE, Number.MAX_VALUE, 'setFloat64'],
     FLOAT: [4, -3.4028234663852886e38, 3.4028234663852886e38, 'setFloat32'],
   }[type];
   if (!spec) throw new Error('不支持的数据类型');
   const input = text.trim();
-  const pattern = type === 'FLOAT'
+  const pattern = (type === 'FLOAT' || type === 'DOUBLE')
     ? /^[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?$/
     : /^(?:[+-]?\d+|0[xX][0-9a-fA-F]+)$/;
   if (!pattern.test(input)) throw new Error('请输入有效数值；整数支持十进制或 0x 十六进制');
   const value = Number(input);
   const [size, min, max, setter] = spec;
   if (!Number.isFinite(value) || value < min || value > max
-      || (type !== 'FLOAT' && !Number.isInteger(value))) {
+      || (type !== 'FLOAT' && type !== 'DOUBLE' && !Number.isInteger(value))) {
     throw new Error(`${type} 范围：${min} ～ ${max}`);
   }
   const bytes = new Uint8Array(size);
