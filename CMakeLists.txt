@@ -34,3 +34,10 @@ if(ROCOS_SHM_BUILD_TESTS)
     add_test(NAME rocos_shm_v2 COMMAND rocos_shm_test)
     set_tests_properties(rocos_shm_v2 PROPERTIES TIMEOUT 30 RUN_SERIAL TRUE)
 endif()
+
+# Optional tools do not change the library's C++11 requirement.
+option(ROCOS_SHM_BUILD_WEB "Build the shared-memory Web monitor (C++17)" ON)
+if(ROCOS_SHM_BUILD_WEB)
+    include(CTest)
+    add_subdirectory(tools/shm_web)
+endif()

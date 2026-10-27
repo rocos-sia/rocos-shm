@@ -12,7 +12,32 @@ cmake --build build -- -j2
 ctest --test-dir build -R '^rocos_shm_v2$' --output-on-failure --timeout 30
 ```
 
-CMake minimum is 3.10; on 3.10 use `mkdir build && cd build && cmake ..` and run `ctest` inside the build directory. Tests use PID-derived IDs >=100000, no hardware and no global IPC cleanup. They create independent processes and mappings; they do not prove EtherCAT timing or SDK thread safety.
+The default build includes the Web monitor and requires CMake 3.16 and C++17. For the C++11 library alone, set `-DROCOS_SHM_BUILD_WEB=OFF`; its CMake minimum remains 3.10. On CMake 3.10 use `mkdir build && cd build && cmake .. -DROCOS_SHM_BUILD_WEB=OFF` and run `ctest` inside the build directory. Tests use PID-derived IDs >=100000, no hardware and no global IPC cleanup. They create independent processes and mappings; they do not prove EtherCAT timing or SDK thread safety.
+
+## Shared Web monitor (ECM / IgH)
+
+[`tools/shm_web`](tools/shm_web/README.md) is the shared, read-only ABI v2 monitor
+for `rocos-ecm` and `rocos-igh`. It was moved from `rocos-igh/tools/shm_web`;
+consumers no longer maintain their own copy. It uses only `rocos::shm`, without
+EtherCAT SDKs or a consumer source tree. `ROCOS_SHM_BUILD_WEB` defaults to `ON`;
+the tool requires C++17 and CMake 3.16. Set it to `OFF` for a library-only build
+(C++11 / CMake 3.10). Existing CMake caches retain their saved value; pass
+`-DROCOS_SHM_BUILD_WEB=ON` once to enable it in a previously disabled build.
+
+```sh
+cmake -S . -B build-web -DBUILD_TESTING=ON
+cmake --build build-web --parallel 2
+ctest --test-dir build-web -R '^shm_web_output$' --output-on-failure
+node --test tools/shm_web/*.test.mjs  # Node.js 20 or newer
+./build-web/tools/shm_web/shm_web_server --master-id 0 --port 8484
+```
+
+Start a compatible ECM or IgH master with the same ID, then open
+`http://127.0.0.1:8484`. Each server observes one ID; run another server with a
+different `--master-id` and `--port` to monitor another bus. ECM and IgH masters
+running together must use distinct IDs. Real buses remain read-only; `--demo`
+creates its own simulated bus and permits demo output writes. See the tool's
+README for standalone builds and deployment requirements.
 
 ## Consume a pinned revision
 
