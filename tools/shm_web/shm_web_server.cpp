@@ -605,9 +605,10 @@ void handleConnection(int fd, AppState &st, const std::string &argv0) {
             ::send(fd, r.data(), r.size(), MSG_NOSIGNAL);
         }
         close(fd);
-    } else if (path == "/value_decoder.mjs") {
+    } else if (path == "/value_decoder.mjs" || path == "/topology.mjs"
+               || path == "/vendor/cytoscape-3.33.1.min.js") {
         std::string script;
-        if (loadFrontendAsset("value_decoder.mjs", script, argv0)) {
+        if (loadFrontendAsset(path.substr(1), script, argv0)) {
             const std::string r = response(200, "OK", "text/javascript; charset=utf-8", script);
             ::send(fd, r.data(), r.size(), MSG_NOSIGNAL);
         } else {
@@ -615,15 +616,25 @@ void handleConnection(int fd, AppState &st, const std::string &argv0) {
             ::send(fd, r.data(), r.size(), MSG_NOSIGNAL);
         }
         close(fd);
-    } else if (path == "/AlibabaPuHuiTi-3-55-Regular.woff2") {
+    } else if (path == "/AlibabaPuHuiTi-3-55-Regular.woff2"
+               || path == "/AlibabaPuHuiTi-3-65-Medium.woff2"
+               || path == "/AlibabaPuHuiTi-3-75-SemiBold.woff2"
+               || path == "/AlibabaPuHuiTi-3-85-Bold.woff2") {
         std::string font;
-        if (loadFrontendAsset("AlibabaPuHuiTi-3-55-Regular.woff2", font, argv0)) {
+        if (loadFrontendAsset(path.substr(1), font, argv0)) {
             const std::string r = response(200, "OK", "font/woff2", font);
             ::send(fd, r.data(), r.size(), MSG_NOSIGNAL);
         } else {
             const std::string r = response(404, "Not Found", "text/plain; charset=utf-8", "not found\n");
             ::send(fd, r.data(), r.size(), MSG_NOSIGNAL);
         }
+        close(fd);
+    } else if (path == "/AlibabaPuHuiTi-3.0-LICENSE.txt" || path == "/vendor/cytoscape-LICENSE.txt") {
+        std::string notice;
+        const bool found = loadFrontendAsset(path.substr(1), notice, argv0);
+        const std::string r = response(found ? 200 : 404, found ? "OK" : "Not Found",
+                                       "text/plain; charset=utf-8", found ? notice : "not found\n");
+        ::send(fd, r.data(), r.size(), MSG_NOSIGNAL);
         close(fd);
     } else if (path == "/api/snapshot") {
         const std::string r = response(200, "OK", "application/json; charset=utf-8", renderSnapshot(st));

@@ -24,30 +24,27 @@ target_link_libraries(shm_web_server PRIVATE
     rt
 )
 
-# 把前端资源复制到可执行文件旁，方便直接运行。
+# Ship offline UI, graph library, font weights, and their license notices together.
+set(SHM_WEB_ASSETS
+    "${CMAKE_CURRENT_SOURCE_DIR}/index.html"
+    "${CMAKE_CURRENT_SOURCE_DIR}/value_decoder.mjs"
+    "${CMAKE_CURRENT_SOURCE_DIR}/topology.mjs"
+    "${CMAKE_CURRENT_SOURCE_DIR}/AlibabaPuHuiTi-3-55-Regular.woff2"
+    "${CMAKE_CURRENT_SOURCE_DIR}/AlibabaPuHuiTi-3-65-Medium.woff2"
+    "${CMAKE_CURRENT_SOURCE_DIR}/AlibabaPuHuiTi-3-75-SemiBold.woff2"
+    "${CMAKE_CURRENT_SOURCE_DIR}/AlibabaPuHuiTi-3-85-Bold.woff2"
+    "${CMAKE_CURRENT_SOURCE_DIR}/AlibabaPuHuiTi-3.0-LICENSE.txt"
+    "${CMAKE_CURRENT_SOURCE_DIR}/font-sources.json"
+)
 add_custom_target(shm_web_assets ALL
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        "${CMAKE_CURRENT_SOURCE_DIR}/index.html"
-        "$<TARGET_FILE_DIR:shm_web_server>/index.html"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        "${CMAKE_CURRENT_SOURCE_DIR}/value_decoder.mjs"
-        "$<TARGET_FILE_DIR:shm_web_server>/value_decoder.mjs"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        "${CMAKE_CURRENT_SOURCE_DIR}/AlibabaPuHuiTi-3-55-Regular.woff2"
-        "$<TARGET_FILE_DIR:shm_web_server>/AlibabaPuHuiTi-3-55-Regular.woff2"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:shm_web_server>"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different ${SHM_WEB_ASSETS} "$<TARGET_FILE_DIR:shm_web_server>"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/vendor" "$<TARGET_FILE_DIR:shm_web_server>/vendor"
     COMMENT "Copying frontend assets next to shm_web_server"
 )
-
 add_custom_command(TARGET shm_web_server POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        "${CMAKE_CURRENT_SOURCE_DIR}/index.html"
-        "$<TARGET_FILE_DIR:shm_web_server>/index.html"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        "${CMAKE_CURRENT_SOURCE_DIR}/value_decoder.mjs"
-        "$<TARGET_FILE_DIR:shm_web_server>/value_decoder.mjs"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        "${CMAKE_CURRENT_SOURCE_DIR}/AlibabaPuHuiTi-3-55-Regular.woff2"
-        "$<TARGET_FILE_DIR:shm_web_server>/AlibabaPuHuiTi-3-55-Regular.woff2"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different ${SHM_WEB_ASSETS} "$<TARGET_FILE_DIR:shm_web_server>"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/vendor" "$<TARGET_FILE_DIR:shm_web_server>/vendor"
 )
 
 if(BUILD_TESTING)

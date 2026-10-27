@@ -33,13 +33,13 @@ test('provides responsive and keyboard-focus styling', () => {
 
 test('uses the snapshot master ID and a modern Chinese UI font', () => {
   assert.match(html, /setText\(['"]masterid['"],\s*snapshot\.master_id/);
-  assert.match(html, /font-family:\s*["']Alibaba PuHuiTi["']/);
-  assert.match(html, /--ui:[^;]*["']Alibaba PuHuiTi["']/);
+  assert.match(html, /font-family:\s*["']AlibabaPuHuiTi["']/);
+  assert.match(html, /--ui:[^;]*["']AlibabaPuHuiTi["']/);
   assert.match(html, /url\(["']\.\/AlibabaPuHuiTi-3-55-Regular\.woff2["']\)/);
   assert.equal(
     existsSync(new URL('./AlibabaPuHuiTi-3-55-Regular.woff2', import.meta.url)),
     true,
-    'expected the Alibaba PuHuiTi webfont asset',
+    'expected the AlibabaPuHuiTi webfont asset',
   );
   assert.match(cmake, /AlibabaPuHuiTi-3-55-Regular\.woff2/);
   assert.match(server, /\/AlibabaPuHuiTi-3-55-Regular\.woff2/);

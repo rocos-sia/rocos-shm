@@ -1,0 +1,45 @@
+{
+  "family": "Alibaba PuHuiTi 3.0",
+  "version": "3.01",
+  "retrievedOn": "2026-10-27",
+  "website": "https://www.alibabafonts.com/",
+  "officialPageScript": "https://g.alicdn.com/uedmid/fonts-alibabagroup/0.10.4/js/index.js",
+  "notice": {
+    "file": "AlibabaPuHuiTi-3.0-LICENSE.txt",
+    "source": "https://www.yuque.com/yiguang-wkqc2/puhuiti/nus9wiinq4aeiegy",
+    "sha256": "867751053058fca0c961415e0a28f6d6c052fed46a86dedc25138bf3f36af96a",
+    "format": "Complete bilingual text copied from the official rendered notice; numbered paragraphs preserved.",
+    "localProvenance": "Complete notice preserved from rocos-cfg/public/licenses/AlibabaPuHuiTi-3.0.txt; original official source and SHA-256 retained."
+  },
+  "fonts": [
+    {
+      "file": "AlibabaPuHuiTi-3-55-Regular.woff2",
+      "weight": 400,
+      "bytes": 5256740,
+      "sha256": "1cb8418d80b01ec08cb6f2d64b6244aaaf1bb80dc35491b66ddba16c5e24f444",
+      "source": "https://fonts.alibabadesign.com/AlibabaPuHuiTi-3/AlibabaPuHuiTi-3-55-Regular/AlibabaPuHuiTi-3-55-Regular.woff2"
+    },
+    {
+      "file": "AlibabaPuHuiTi-3-65-Medium.woff2",
+      "weight": 500,
+      "bytes": 5469328,
+      "sha256": "628a0d5be684bae0e7a8e3ad15b7c4f623fd15b3375082624f778326e343467a",
+      "source": "https://fonts.alibabadesign.com/AlibabaPuHuiTi-3/AlibabaPuHuiTi-3-65-Medium/AlibabaPuHuiTi-3-65-Medium.woff2"
+    },
+    {
+      "file": "AlibabaPuHuiTi-3-75-SemiBold.woff2",
+      "weight": 600,
+      "bytes": 5481108,
+      "sha256": "75e2ba042e1c8ad8cf3dd5bf26f25984ffeca6c4ebb86977c8f8e1abeeb2652f",
+      "source": "https://fonts.alibabadesign.com/AlibabaPuHuiTi-3/AlibabaPuHuiTi-3-75-SemiBold/AlibabaPuHuiTi-3-75-SemiBold.woff2"
+    },
+    {
+      "file": "AlibabaPuHuiTi-3-85-Bold.woff2",
+      "weight": 700,
+      "bytes": 5560840,
+      "sha256": "5947ecd5447c34865d036740f38afbf4364b3cf7bb3d399aba0f169b59c6ec35",
+      "source": "https://fonts.alibabadesign.com/AlibabaPuHuiTi-3/AlibabaPuHuiTi-3-85-Bold/AlibabaPuHuiTi-3-85-Bold.woff2"
+    }
+  ],
+  "localProvenance": "Copied unchanged from kinematics-id-studio/frontend/public/fonts; verified against its recorded SHA-256 values."
+}
